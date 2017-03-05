@@ -70,77 +70,134 @@
 \begin{document}
 	\maketitle
 	\begin{abstract}
-		\lipsum[2]
+	The aim of this project was to create a 3D scene using OpenGL. A number of techniques to be used were referenced in the coursework specification, but the freedom to create whatever scene came to mind was left unrestricted. This report details the features implemented within the code and the thought process used when planning the project and considering additional features.
 	\end{abstract}
     
 	\textbf{Keywords -- }{\mykeywords}
     %START FROM HERE
 	\section{Introduction}
-    \paragraph{Referencing}
-    You should cite References like this: \cite{Keshav}. The references are saved in an external .bib file, and will automatically be added ot the bibliography at the end once cited.
+    %You should cite References like this: \cite{Keshav}. The references are saved in an external .bib file, and will automatically be added ot the bibliography at the end once cited.
+    After struggling to decide on a scene for this project, a thought occurred that gave some motivation. The idea behind this 3D scene was "A Candlelit Dinner". This idea was satisfactory as it provided opportunity to implement a number of graphical effects.  
+   
+    Some of the key effects that have been implemented include a free camera to navigate the scene, a point light and a number of objects with the majority being created within the code, however, certain objects have been imported \cite{Chair}.
     
-    \figuremacro{h}{placeholder}{ImageTitle}{ - Some Descriptive Text}{1.0}
+    Other key features include multiple transforms being used on objects, different material values being used on each object, particularly diffuse/emissive/specular/shininess values and multiple textures have also been used throughout the scene.
+    
+    \figuremacro{h}{scene}{A Candlelit Dinner}{ - 3D scene created}{1.0}
 	
-	\section{Formatting}
-	Some common formatting you may need uses these commands for \textbf{Bold Text}, \textit{Italics}, and \underline{underlined}.
-	\subsection{LineBreaks}
-	Here is a line
-    
-    Here is a line followed by a double line break.
-	This line is only one line break down from the above, Notice that latex can ignore this
-    
-    We can force a break \\ with the break operator.
-    
-	\subsection{Maths}
-    Embedding Maths is Latex's bread and butter    
-    
-    {\centering \Large \(
-        J = \begin{bmatrix}
-            \frac{\delta e}{\delta \theta _0}
-            \frac{\delta e}{\delta \theta _1}
-            \frac{\delta e}{\delta \theta _2}
-        \end{bmatrix}
-        = e_{current} - e_{target} 
-    \)\par}
+	\section{Implementation}
+	The major features of this 3D scene are as follows:
+
+	\subsection{Free Camera}
+	This camera allows the user to freely navigate the scene at their will. The camera translation is adjusted by the user using the "WSAD" keys which translate the camera by 50, multiplied by delta time so the movement occurs in real-time. The "W" and "S" keys translate the camera on the Z-axis whereas the "A" and "D" keys translate the camera on the X-axis.
+
+	\begin{lstlisting}[caption = Free Camera movement keys]
+	if (glfwGetKey(renderer::get_window(), 'W')) {
+	translation.z += 50.0f * delta_time;
+	}
+	if (glfwGetKey(renderer::get_window(), 'S')) {
+	translation.z -= 50.0f * delta_time;
+	}
+	if (glfwGetKey(renderer::get_window(), 'A')) {
+	translation.x -= 50.0f * delta_time;
+	}
+	if (glfwGetKey(renderer::get_window(), 'D')) {
+	translation.x += 50.0f * delta_time;
+	}
+	// Move camera
+	cam.move(translation);
+	// Update the camera
+	cam.update(delta_time);
+	\end{lstlisting}
+
+	\subsection{Point Light}
+	This is the only light used within the scene. It has been placed on top of the sphere of light sitting on the table in order to cast light over all the objects in the scene. This feature was particularly hard to implement as it requires knowledge of Phong shading \cite{Phong}, which in itself requires knowledge of Diffuse \cite{Diffuse} and Specular \cite{Specular}  components.
 	
-	\subsection{Code Listing}
-    You can load segments of code from a file, or embed them directly.
-    
-\begin{lstlisting}[caption = Hello World! in c++]
-#include <iostream>
-
-int main() {
-    std::cout << "Hello World!" << std::endl;
-    std::cin.get();
-    return 0;
-}
-\end{lstlisting}
-
-\lstinputlisting[caption = Hello World! in python script]{./sourceCode/hello.py}
-    
-\subsection{PseudoCode}
-
-\begin{algorithm}[h]
-\For{$i = 0$ \KwTo $100$}{
- print\_number = true\;
-\If{i is divisible by 3}{
- print "Fizz"\;
- print\_number = false\;
-}
-\If{i is divisible by 5}{
- print "Buzz"\;
- print\_number = false\;
-}
-\If{print\_number}{
-    print i\;
-}
-print a newline\;
-}
-\caption{FizzBuzz}
-\end{algorithm}
+	\begin{lstlisting}[caption = Main section of fragment shader]
+	void main() {
+	// Get distance between point light and vertex
+	float d = distance(point.position, position);
+	// Calculate attenuation factor
+	float af = (point.constant + (point.linear*d) + (point.quadratic*d*d));
+	// Calculate light colour
+	vec4 light_colour;
+	light_colour = point.light_colour/af;
+	// Calculate light dir
+	vec3 light_dir = normalize(point.position - position);
 	
-\section{Conclusion}	
-\bibliographystyle{ieeetr}
-\bibliography{references}
+	// Calculate diffuse component
+	float kd = max(dot(normal, light_dir), 0.0);
+	vec4 diffuse = kd * (mat.diffuse_reflection * light_colour);
+	// Calculate view direction
+	vec3 view_dir = normalize(eye_pos-position);
+	// Calculate half vector
+	vec3 half_vector = normalize(light_dir + view_dir);
+	// Calculate specular component
+	float ks = pow(max(dot(normal, half_vector), 0.0), mat.shininess);
+	vec4 specular = ks * (mat.specular_reflection * light_colour);
+	// Sample texture
+	vec4 tex_colour = texture(tex, tex_coord);
+	// Calculate primary colour component
+	vec4 primary = mat.emissive + diffuse;
+	// Calculate final colour
+	vec4 secondary = specular;
+	colour = primary * tex_colour + secondary;
+	colour.a = 1.0;
+	}
+	\end{lstlisting}
+	
+	\subsection{Object Values}
+	A number of material values have been set for each object created in the scene. The emissive value changes how much light each object gives off. The sphere of light in particular has been adjusted to emit a yellow light. The diffuse value gives each object a more realistic shape \cite{Diffuse} and the specular value provides highlights to the object \cite{Specular}.
+	
+	Multiple transforms have also been applied to each object. The objects have had their positions transformed in order to move the object to certain points on each axis. The objects have also had their scale transformed to adjust their size.
+	
+	\begin{lstlisting}[caption = Values set for the sphere object]
+	meshes["sphere"].get_transform().scale = vec3(2.50f, 2.50f, 2.50f);
+	meshes["sphere"].get_transform().position = vec3(-12.5f, 21.0f, 2.5f);
+	meshes["sphere"].get_material().set_emissive(vec4(1.0f, 1.0f, 0.0f, 1.0f));
+	meshes["sphere"].get_material().set_diffuse(vec4(1.0f, 1.0f, 1.0f, 1.0f));
+	meshes["sphere"].get_material().set_specular(vec4(1.0f, 1.0f, 1.0f, 1.0f));
+	meshes["sphere"].get_material().set_shininess(25.0f);
+	\end{lstlisting}
+	
+	\subsection{Multiple Textures}
+	Multiple textures have been applied within the scene. The base plane used for the floor of the scene has had a purple-carpet texture applied. The components of the table all have a polished wood texture and the chair has a similar texture applied. The sphere has been given a sun-like texture \cite{Sun}. The program chooses which textures to bind to each object in the render section of the code.
+	
+	\begin{lstlisting}[caption = If statements to decide which texture to use]
+	// Bind textures to renderer
+	if (e.first == "floor_plane")
+	{
+	renderer::bind(tex, 0);
+	}
+	else
+	{
+	renderer::bind(tex2, 0);
+	}
+	if (e.first == "chair")
+	{
+	renderer::bind(tex3, 0);
+	}
+	if (e.first == "sphere")
+	{
+	renderer::bind(tex4, 0);
+	}
+	\end{lstlisting}
+ 	
+ 	\section{Future Work}
+ 	An adjustment that will be made in the future is that the sphere of light on top of the table will be changed to a candle, as that is more befitting of the theme "A Candlelit Dinner". The scene will also be enclosed in a box textured with a wall and ceiling texture, to make the scene feel more like a dining room.
+ 	
+ 	Additional lights will also be implemented, as well as shadows for each object. Normal mapping is also a key feature that is currently missing from the scene.
+ 	
+ 	Another feature that could benefit the scene would be the use of target cameras strategically placed around the scene which could each be loaded on the press of a key. These would be used in conjunction with the free camera. A transform hierarchy will also be implemented in the scene.
+ 	
+ 	Post-processing effects and additional rendering techniques are also scheduled for implementation, however, the specifics of these have not yet been considered.
+ 	
+ 	\section{Conclusion}
+ 	To conclude, this scene was harder to complete than anticipated, however, it was also satisfying to work on. Trying to implement certain features, particularly the point light made it clear that an understanding of how these effects work and the maths behind them is crucial to making them work.
+ 	
+ 	A lot of requirements listed in the specification were achieved, however, a fair number were not completed, including use of normal mapping, shadows, a transform hierarchy, multiple lights and multiple cameras. These will be completed alongside the work required for Part 2 of the coursework.
+ 	\pagebreak
+	\bibliographystyle{ieeetr}
+	\bibliography{references}
 		
 \end{document}
